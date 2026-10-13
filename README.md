@@ -33,7 +33,10 @@ Answer choices in a conversation are numbered in their A/B/C order.
 
 - **Widens to the left when a panel opens.** Conversation details and the bot's computer view
   open as a panel on the right. grokbar widens the window to the left by the panel's width, so
-  the right edge stays under the bar, and shrinks it back when the panel closes.
+  the right edge stays under the bar, and shrinks it back when the panel closes. Resizing it
+  yourself (Omarchy's Super+= and Super+-, or the mouse) also keeps the right edge in place,
+  and grokbar remembers the new width. Delete `~/.local/state/grokbar/width` to go back to
+  the width in your config.
 - **Gets out of the way.** The drop-down slides back up when a window goes fullscreen, the
   screensaver starts or a monitor disconnects, so it never sits on top of them.
 - **Matches your Omarchy theme.** The letters use your theme's accent, background and font, and

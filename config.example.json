@@ -1,0 +1,11 @@
+{
+  "profile": "grok-bot",
+  "width": 760,
+  "heightPercent": 80,
+  "top": 36,
+  "gap": 10,
+  "hints": {
+    "singles": "asdfghjklewruiotypnmcb",
+    "prefixes": "qzxv"
+  }
+}

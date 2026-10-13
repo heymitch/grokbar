@@ -1,0 +1,28 @@
+{
+  "name": "Grok Bot",
+  "command": "/usr/bin/grok-bot",
+  "desktopFile": "grok-bot.desktop",
+  "windowClass": [
+    "grok-bot",
+    "Grok Bot"
+  ],
+  "page": "/dist/renderer/index.html",
+  "package": "grok-bot",
+  "watch": "/opt/Grok Bot/resources/app.asar",
+  "ui": {
+    "newChat": "New chat",
+    "search": "Search",
+    "searchInput": "aside[aria-label=\"Bots\"] input, [role=dialog] input, input[type=search]",
+    "prompt": "Prompt",
+    "promptFallback": "main [role=textbox][contenteditable=true]",
+    "botList": "aside[aria-label=\"Bots\"]",
+    "botItems": "button[tabindex]",
+    "conversation": "[role=log]",
+    "skip": "^(Minimize|Restore|Maximize|Close) window$",
+    "sidePanels": "aside:not([aria-label=\"Bots\"])"
+  },
+  "helper": {
+    "process": "local-exec-daemon/main.cjs",
+    "label": "this computer's connection to Grok Bot"
+  }
+}

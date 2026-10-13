@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "heymitch.grokbar",
+  "name": "grokbar",
+  "version": "0.1.0",
+  "author": "heymitch",
+  "license": "MIT",
+  "description": "Grok Bot as a drop-down under the bar, with keyboard hints",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "grokbar",
+    "description": "Click or Super+B to drop Grok Bot down from the bar",
+    "category": "AI",
+    "defaultSection": "right",
+    "allowMultiple": false,
+    "defaults": {
+      "icon": "face"
+    },
+    "schema": [
+      {
+        "key": "icon",
+        "type": "enum",
+        "label": "Icon",
+        "options": ["face", "app"],
+        "defaultValue": "face",
+        "description": "face: a ball with two eyes in your theme's bar colors. app: the installed app's own icon."
+      }
+    ]
+  }
+}

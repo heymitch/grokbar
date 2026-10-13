@@ -1,0 +1,149 @@
+#!/bin/bash
+# grokbar: Grok Bot as a drop-down under the Omarchy bar, with keyboard hints.
+#
+#   grokbar toggle          drop the app down from the top, or slide it back up
+#   grokbar hide            slide it back up if it's down (run on screensaver and fullscreen)
+#   grokbar launch [args]   start the app with keyboard hints (used by toggle and the app menu)
+#   grokbar check           check the hints still find the app's bots and buttons
+#   grokbar restart         close the app cleanly and start it again
+#   grokbar preview         show the hints for 3 seconds
+#   grokbar inspect         list open panels and anything past the right edge (for profiles)
+#   grokbar updated         run by the update watcher after the app is updated
+#   grokbar fit             resize the shown window for open side panels (run by the launcher)
+
+set -o pipefail
+
+ROOT=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/grokbar/config.json"
+SPECIAL=grokbar
+
+setting() {
+  local value
+  [[ -f $CONFIG ]] && value=$(jq -r "$1 // empty" "$CONFIG" 2>/dev/null)
+  echo "${value:-$2}"
+}
+
+PROFILE="$ROOT/profiles/$(setting .profile grok-bot).json"
+[[ -f $PROFILE ]] || { echo "grokbar: no profile at $PROFILE" >&2; exit 1; }
+APP_NAME=$(jq -r .name "$PROFILE")
+
+launcher() { exec node "$ROOT/lib/launcher.mjs" "$@"; }
+
+find_window() {
+  hyprctl clients -j | jq -c --argjson classes "$(jq -c .windowClass "$PROFILE")" \
+    '[.[] | select(.class as $c | $classes | index($c))][0] // empty'
+}
+
+STATE="$HOME/.local/state/grokbar"
+
+# Width: the configured width plus any open side panels, never wider than the
+# monitor. The right edge stays under the right end of the bar.
+geometry() { # monitor-x monitor-width -> "width x"
+  local base gap extra width
+  base=$(setting .width 760)
+  gap=$(setting .gap 10)
+  extra=$(cat "$STATE/extra-width" 2>/dev/null || echo 0)
+  width=$((base + extra))
+  ((width > $2 - 2 * gap)) && width=$(($2 - 2 * gap))
+  echo "$width $(($1 + $2 - width - gap))"
+}
+
+fit() {
+  local window w mx mw width x
+  window=$(find_window)
+  [[ -z $window || $(jq -r .workspace.name <<<"$window") == special:* ]] && return
+  w="address:$(jq -r .address <<<"$window")"
+  read -r mx mw < <(hyprctl monitors -j | jq -r --argjson id "$(jq .monitor <<<"$window")" '.[] | select(.id == $id) | "\(.x) \(.width / .scale | floor)"')
+  read -r width x < <(geometry "$mx" "$mw")
+  hyprctl dispatch "hl.dsp.window.resize({ window = \"$w\", x = $width, y = $(jq -r '.size[1]' <<<"$window") })" >/dev/null
+  hyprctl dispatch "hl.dsp.window.move({ window = \"$w\", x = $x, y = $(jq -r '.at[1]' <<<"$window") })" >/dev/null
+}
+
+# Hidden, the window waits on the special workspace "grokbar". Shown, it floats
+# pinned on the current workspace. The slide is Hyprland's window-move
+# animation: the window is placed just above the screen, then moved down.
+# "Above" leaves its bottom pixel row under the bar: a window entirely off
+# screen has no monitor, and Hyprland then refuses to unpin or move it.
+toggle() {
+  local width top percent window w mx my mw mh ws height x above
+  top=$(setting .top 36)
+  percent=$(setting .heightPercent 80)
+  d() { hyprctl dispatch "$1" >/dev/null; }
+
+  window=$(find_window)
+  if [[ -z $window ]]; then
+    setsid -f "$ROOT/bin/grokbar" launch >/dev/null 2>&1
+    for _ in $(seq 100); do
+      window=$(find_window)
+      [[ -n $window ]] && break
+      sleep 0.1
+    done
+    [[ -z $window ]] && exit 1
+    sleep 0.3
+  fi
+
+  w="address:$(jq -r .address <<<"$window")"
+  read -r mx my mw mh ws < <(hyprctl monitors -j | jq -r '.[] | select(.focused) | "\(.x) \(.y) \(.width / .scale | floor) \(.height / .scale | floor) \(.activeWorkspace.name)"')
+  height=$((mh * percent / 100))
+  read -r width x < <(geometry "$mx" "$mw")
+  above=$((my - height + 1))
+
+  if [[ $(jq -r .workspace.name <<<"$window") == special:* ]]; then
+    d "hl.dsp.window.float({ window = \"$w\", action = \"enable\" })"
+    d "hl.dsp.window.resize({ window = \"$w\", x = $width, y = $height })"
+    d "hl.dsp.window.move({ window = \"$w\", x = $x, y = $above })"
+    d "hl.dsp.window.move({ window = \"$w\", workspace = \"$ws\", follow = false })"
+    [[ $(jq -r .pinned <<<"$(find_window)") == true ]] || d "hl.dsp.window.pin({ window = \"$w\" })"
+    d "hl.dsp.focus({ window = \"$w\" })"
+    d "hl.dsp.window.move({ window = \"$w\", x = $x, y = $((my + top)) })"
+  else
+    hide "$window"
+  fi
+}
+
+hide() {
+  local window=${1:-$(find_window)} w my height
+  [[ -z $window || $(jq -r .workspace.name <<<"$window") == special:* ]] && return
+  w="address:$(jq -r .address <<<"$window")"
+  my=$(hyprctl monitors -j | jq -r --argjson id "$(jq .monitor <<<"$window")" '.[] | select(.id == $id) | .y')
+  height=$(jq -r '.size[1]' <<<"$window")
+  hyprctl dispatch "hl.dsp.window.move({ window = \"$w\", x = $(jq -r '.at[0]' <<<"$window"), y = $((${my:-0} - height + 1)) })" >/dev/null
+  sleep 0.35
+  if [[ $(jq -r .pinned <<<"$window") == true ]]; then
+    # After a monitor disconnects, a pinned window can be left with no
+    # monitor and pin refuses to toggle; tiling it for a moment unpins it.
+    if [[ $(find_window | jq -r .monitor) == -1 ]]; then
+      hyprctl dispatch "hl.dsp.window.float({ window = \"$w\", action = \"disable\" })" >/dev/null
+      hyprctl dispatch "hl.dsp.window.float({ window = \"$w\", action = \"enable\" })" >/dev/null
+    else
+      hyprctl dispatch "hl.dsp.window.pin({ window = \"$w\" })" >/dev/null
+    fi
+  fi
+  hyprctl dispatch "hl.dsp.window.move({ window = \"$w\", workspace = \"special:$SPECIAL\", follow = false })" >/dev/null
+}
+
+# The running app keeps the old version until it restarts; restarting runs
+# the launcher's check against the new version.
+updated() {
+  local package version choice
+  sleep 5
+  package=$(jq -r '.package // empty' "$PROFILE")
+  version=$([[ -n $package ]] && pacman -Q "$package" 2>/dev/null | cut -d' ' -f2)
+  if [[ ! -S ${XDG_RUNTIME_DIR:-/tmp}/grokbar.sock ]]; then
+    notify-send -a grokbar "$APP_NAME updated${version:+ to $version}" "Keyboard hints will be checked the next time it starts."
+    return
+  fi
+  choice=$(notify-send -a grokbar -A restart="Restart now" -w \
+    "$APP_NAME updated${version:+ to $version}" "Restart it to load the update and recheck keyboard hints.")
+  [[ $choice == restart ]] && node "$ROOT/lib/launcher.mjs" restart
+}
+
+case ${1:-toggle} in
+  toggle) toggle ;;
+  hide) hide ;;
+  launch) shift; launcher launch "$@" ;;
+  check | restart | preview | inspect) launcher "$1" ;;
+  updated) updated ;;
+  fit) fit ;;
+  *) sed -n '2,13s/^# \{0,1\}//p' "$0"; exit 1 ;;
+esac

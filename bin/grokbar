@@ -11,7 +11,6 @@
 #   grokbar updated         run by the update watcher after the app is updated
 #   grokbar fit             resize the shown window for open side panels (run by the launcher)
 #   grokbar anchor          after a resize, keep the right edge in place (run by the launcher)
-#   grokbar refloat ADDR    put the window back in drop-down shape if it was tiled (run by the launcher)
 
 set -o pipefail
 
@@ -57,6 +56,7 @@ fit() {
   w="address:$(jq -r .address <<<"$window")"
   read -r mx mw < <(hyprctl monitors -j | jq -r --argjson id "$(jq .monitor <<<"$window")" '.[] | select(.id == $id) | "\(.x) \(.width / .scale | floor)"')
   read -r width x < <(geometry "$mx" "$mw")
+  echo "$width" >"$STATE/set-width"
   hyprctl dispatch "hl.dsp.window.resize({ window = \"$w\", x = $width, y = $(jq -r '.size[1]' <<<"$window") })" >/dev/null
   hyprctl dispatch "hl.dsp.window.move({ window = \"$w\", x = $x, y = $(jq -r '.at[1]' <<<"$window") })" >/dev/null
 }
@@ -79,28 +79,17 @@ anchor() {
   ((width > max)) && width=$max
   ((width - extra < 360)) && width=$((extra + 360))
   mkdir -p "$STATE"
-  echo $((width - extra)) >"$STATE/width"
+  # Panels opening and closing resize the window too; only a width grokbar
+  # didn't set itself is the user's, and worth remembering.
+  if [[ $width != "$(cat "$STATE/set-width" 2>/dev/null)" ]]; then
+    echo $((width - extra)) >"$STATE/width"
+    echo "$width" >"$STATE/set-width"
+  fi
   x=$((mx + mw - width - gap))
   ((width != $(jq -r '.size[0]' <<<"$window"))) &&
     hyprctl dispatch "hl.dsp.window.resize({ window = \"$w\", x = $width, y = $(jq -r '.size[1]' <<<"$window") })" >/dev/null
   ((x != $(jq -r '.at[0]' <<<"$window"))) &&
     hyprctl dispatch "hl.dsp.window.move({ window = \"$w\", x = $x, y = $((my + top)) })" >/dev/null
-}
-
-# Tiling the drop-down (Super+T, for one) makes it fill the workspace and
-# drops its pin. Float it again, pinned, back under the right end of the bar.
-refloat() {
-  local window w mx my mw mh width x
-  window=$(find_window)
-  [[ -z $window || $(jq -r .address <<<"$window") != "0x${1#0x}" ]] && return
-  [[ $(jq -r .workspace.name <<<"$window") == special:* || $(jq -r .floating <<<"$window") == true ]] && return
-  w="address:$(jq -r .address <<<"$window")"
-  read -r mx my mw mh < <(hyprctl monitors -j | jq -r '.[] | select(.focused) | "\(.x) \(.y) \(.width / .scale | floor) \(.height / .scale | floor)"')
-  read -r width x < <(geometry "$mx" "$mw")
-  hyprctl dispatch "hl.dsp.window.float({ window = \"$w\", action = \"enable\" })" >/dev/null
-  hyprctl dispatch "hl.dsp.window.resize({ window = \"$w\", x = $width, y = $((mh * $(setting .heightPercent 80) / 100)) })" >/dev/null
-  hyprctl dispatch "hl.dsp.window.move({ window = \"$w\", x = $x, y = $((my + $(setting .top 36))) })" >/dev/null
-  [[ $(find_window | jq -r .pinned) == true ]] || hyprctl dispatch "hl.dsp.window.pin({ window = \"$w\" })" >/dev/null
 }
 
 # Hidden, the window waits on the special workspace "grokbar". Shown, it floats
@@ -134,6 +123,7 @@ toggle() {
 
   if [[ $(jq -r .workspace.name <<<"$window") == special:* ]]; then
     d "hl.dsp.window.float({ window = \"$w\", action = \"enable\" })"
+    mkdir -p "$STATE" && echo "$width" >"$STATE/set-width"
     d "hl.dsp.window.resize({ window = \"$w\", x = $width, y = $height })"
     d "hl.dsp.window.move({ window = \"$w\", x = $x, y = $above })"
     d "hl.dsp.window.move({ window = \"$w\", workspace = \"$ws\", follow = false })"
@@ -194,6 +184,5 @@ case ${1:-toggle} in
   updated) updated ;;
   fit) fit ;;
   anchor) anchor ;;
-  refloat) refloat "$2" ;;
-  *) sed -n '2,15s/^# \{0,1\}//p' "$0"; exit 1 ;;
+  *) sed -n '2,14s/^# \{0,1\}//p' "$0"; exit 1 ;;
 esac

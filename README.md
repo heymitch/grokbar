@@ -37,6 +37,8 @@ Answer choices in a conversation are numbered in their A/B/C order.
   yourself (Omarchy's Super+= and Super+-, or the mouse) also keeps the right edge in place,
   and grokbar remembers the new width. Delete `~/.local/state/grokbar/width` to go back to
   the width in your config.
+- **Tiles when you want it to.** Omarchy's Super+T tiles the drop-down like any window; Super+B
+  puts it away, and the next Super+B drops it down again.
 - **Gets out of the way.** The drop-down slides back up when a window goes fullscreen, the
   screensaver starts or a monitor disconnects, so it never sits on top of them.
 - **Matches your Omarchy theme.** The letters use your theme's accent, background and font, and

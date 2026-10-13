@@ -22,7 +22,8 @@
     "sidePanels": "aside:not([aria-label=\"Bots\"])"
   },
   "helper": {
-    "process": "local-exec-daemon/main.cjs",
+    "log": "~/.grokbot/local-exec-daemon.log",
+    "started": "started \\(pid (\\d+)\\)",
     "label": "this computer's connection to Grok Bot"
   }
 }

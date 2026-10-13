@@ -173,7 +173,7 @@ updated() {
   fi
   choice=$(notify-send -a grokbar -A restart="Restart now" -w \
     "$APP_NAME updated${version:+ to $version}" "Restart it to load the update and recheck keyboard hints.")
-  [[ $choice == restart ]] && node "$ROOT/lib/launcher.mjs" restart
+  if [[ $choice == restart ]]; then node "$ROOT/lib/launcher.mjs" restart; fi
 }
 
 case ${1:-toggle} in

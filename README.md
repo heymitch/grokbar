@@ -120,7 +120,8 @@ Over that channel grokbar does four things, and nothing else:
 3. reads how wide open panels are, to resize the window
 4. runs its self-check
 
-It also checks, outside the app, that Grok Bot's helper process for your computer is running.
+It also checks, outside the app, that Grok Bot's helper for your computer is running, by reading
+the pid the helper writes to its own log.
 
 It never reads your messages or sends anything anywhere. Hints find buttons by their
 accessibility labels and roles, not by Grok Bot's internal code, which is why updates rarely
@@ -145,7 +146,7 @@ grokbar inspect     list open panels and anything past the right edge
 
 Everything specific to Grok Bot lives in `profiles/grok-bot.json`: how to start it, its window
 class, which buttons Alt+N, Alt+/ and Alt+I press, where the bot list and side panels are, and
-which file to watch for updates, and which helper process to keep an eye on. A profile for another Electron app, such as Slack, is a new
+which file to watch for updates, and which helper log to keep an eye on. A profile for another Electron app, such as Slack, is a new
 JSON file plus `"profile": "slack"` in your config. `grokbar inspect` shows the panels and labels
 you need.
 
